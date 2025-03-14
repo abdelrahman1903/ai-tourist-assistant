@@ -1,0 +1,14 @@
+{
+  "records": [
+    {
+      "id": "1",
+      "question": "where is the base location of this model",
+      "answer": "this model is based in egypt"
+    },
+    {
+      "id": "2",
+      "question": "what is this model used for",
+      "answer": "this model is used for tourists assistance in cultural interpretation"
+    }
+  ]
+}
