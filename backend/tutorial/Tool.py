@@ -1,10 +1,11 @@
 import requests
-class GeographicAwarness:
+class Tool:
     # Get location from ipinfo.io
     @staticmethod
     def nearLocations():
         try:
-            print("in")
+            print("in location tool")
+            # Get location from ipinfo.io
             response = requests.get("https://ipinfo.io/json", timeout=10)
             response.raise_for_status()  # Raises an error for bad responses (4xx, 5xx)
             data = response.json()
