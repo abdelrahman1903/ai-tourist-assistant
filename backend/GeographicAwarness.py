@@ -49,7 +49,8 @@ class GeographicAwarness:
                     "wikidata": f"https://www.wikidata.org/wiki/{tags.get('wikidata')}" if tags.get("wikidata") else "N/A"
                 }
                 museums.append(museum_info)
-            # print(museums)
+            print(museums)
+            print("done tool")
             return museums  # Return structured list of museums
 
         except requests.exceptions.RequestException as e:
