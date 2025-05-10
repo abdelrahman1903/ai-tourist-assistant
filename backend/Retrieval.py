@@ -4,14 +4,15 @@ import json
 class Retrieval:
     # Get location from ipinfo.io
     @staticmethod
-    def search_db(question: str):
+    def search_db():
         try:
             print("inside data base")
             """
             Load the whole knowledge base from the JSON file.
             (This is a mock function for demonstration purposes, we don't search)
             """
-            with open("DB.json", "r") as data:
+            with open("metadata.json", "r") as data:
+                # print(json.load(data))
                 return json.load(data)
         except requests.exceptions.RequestException as e:
             print("Network error:", e)

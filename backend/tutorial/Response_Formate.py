@@ -1,4 +1,4 @@
-from openai import OpenAI
+import google.generativeai as genai
 
 import os
 from dotenv import load_dotenv
@@ -22,29 +22,36 @@ class Response_Formate:
     if not api_key:
       raise ValueError("Missing OPENROUTER_API_KEY. Did you forget to set it in your .env file?")
     def __init__(self):
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=api_key,
+        genai.configure(api_key=api_key)
+        self.LLMmodel = genai.GenerativeModel(
+            model_name="gemini-2.0-flash",
         )
-        self.messages = [{"role": "system", "content": "You are a kind, helpful culture assistant."}]
+        self.messages = [{"role": "user", "parts": ["You are a kind, helpful culture assistant."]}]
 
 
     #this function is the one used gt generate the response to the user's message
     def generate_response(self, user_message):
        
-        self.messages.append({"role": "user", "content": user_message})
+        self.messages.append({"role": "user", "parts": [user_message]})
 
-        chat = self.client.beta.chat.completions.parse(
-            model="google/gemini-2.0-pro-exp-02-05:free",
-            messages=self.messages,
-            response_format = CalenderEvent, #gives the model the response format that we created
+        response = self.LLMmodel.generate_content(
+            contents = self.messages,
+            generation_config={
+                "response_mime_type": "application/json",
+                "response_schema": CalenderEvent,
+                "temperature": 0,
+            }
         )
 
         #getting the response that the LLM sent
-        reply_message = chat.choices[0].message
-        reply = reply_message.content
+        reply = response.text
         #the reply is added to the messages array so that the model could keep context and remember the previous messagges
-        self.messages.append({"role": "assistant", "content": reply})
+        self.messages.append({"role": "model", "parts": [reply]})
         return reply
 
 
+#for testing if you want to run the file directly instead of running FastApi.py
+response_format__instance = Response_Formate()
+while(True):
+    userInput = input()
+    print(response_format__instance.generate_response(userInput))
