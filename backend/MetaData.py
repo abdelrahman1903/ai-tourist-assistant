@@ -4,6 +4,7 @@ from Summarization import Summarization
 from pydantic import BaseModel, Field
 import os
 import json
+import google.generativeai as genai
 
 load_dotenv()
 api_key = os.getenv("OPENROUTER_API_KEY")
@@ -40,26 +41,28 @@ def insert_to_metaData(record: Meta_data, filename="metadata.json"):
 class MetaData:
     def __init__(self):
         if not api_key:
-            raise ValueError("Missing OPENROUTER_API_KEY. Please set it in your .env file.")
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=api_key
+            raise ValueError("Missing OPENROUTER_API_KEY. Did you forget to set it in your .env file?")
+        genai.configure(api_key=api_key)
+        self.LLMmodel = genai.GenerativeModel(
+            model_name="gemini-2.0-flash",
         )
-    def metaData_instance(self,document_path):
-        summary = Summarization().Summarize(document_path)
-        messages = [{"role": "system", "content": "You are a kind, helpful assistant. that should create a meta data record for the inputed file. given it path and summary"}]
-        messages.append({"role": "user", "content": f"here is the file path: {document_path} and the summary: {summary}"})
-        chat4 = self.client.beta.chat.completions.parse(
-            model="google/gemini-2.0-flash-exp:free",
-            messages=messages,
-            response_format = Meta_data
+
+    def metaData_instance(self,document_path,text):
+        summary = Summarization().Summarize(document_path,text)
+        messages = [{"role": "user", "parts": ["You are a kind, helpful assistant. that should create a meta data record for the inputed file. given it path and summary"]}]
+        messages.append({"role": "user", "parts": [f"here is the file path: {document_path} and the summary: {summary}"]})
+        response = self.LLMmodel.generate_content(
+            contents = messages,
+            generation_config={
+                "response_mime_type": "application/json",
+                "response_schema": Meta_data,
+                "temperature": 0,
+            }
         )
-        # reply_message = chat4.choices[0].message
-        # reply = reply_message.content
-        reply = chat4.choices[0].message.parsed
+        reply = json.loads(response.text)
         print(f"this should be the metadata record:",reply)
         # print(test,is_valid_json_string(reply))
-        insert_to_metaData(reply)
+        insert_to_metaData(Meta_data(**reply))
 
 # MetaData().metaData_instance("uploads/Abdelrahman_Zakzouk_Resume.pdf")
       

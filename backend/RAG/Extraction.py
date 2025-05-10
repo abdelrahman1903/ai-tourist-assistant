@@ -34,6 +34,7 @@ def extract_json_from_text(document_path):
         "that could be stored as metadata for quick retrieval:\n\n"
         f"{markdown_output}"
     )
+    response = model.generate_content(messages)
     # messages.append({"role": "user", "content": markdown_output})
     chat5 = client.models.generate_content(
         model="gemini-2.0-flash",

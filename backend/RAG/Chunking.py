@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import os
 from MetaData import MetaData
+import google.generativeai as genai
 
 
 
@@ -28,6 +29,16 @@ print("Device name:", torch.cuda.get_device_name(0) if torch.cuda.is_available()
 # ------------------------------
 load_dotenv()
 api_key = os.getenv("OPENROUTER_API_KEY")
+if not api_key:
+    raise ValueError("Missing OPENROUTER_API_KEY. Did you forget to set it in your .env file?")
+genai.configure(api_key=api_key)
+LLMmodel = genai.GenerativeModel(
+    model_name="gemini-2.0-flash",
+    # generation_config={
+    #     # "temperature": 0.7,  # Default temperature
+    #     "max_output_tokens": 20000,
+    # }
+)
 tokenizer = AutoTokenizer.from_pretrained("nomic-ai/nomic-embed-text-v2-moe")
 model = AutoModel.from_pretrained("nomic-ai/nomic-embed-text-v2-moe", trust_remote_code=True)
 MAX_TOKENS = 512  # as required by nomic-embed-text-v2-moe
@@ -144,7 +155,7 @@ def process_and_store_document(table,document_path: str):
 
     table.add(processed_chunks)
     print("done chunking")
-    MetaData().metaData_instance(document_path)
+    MetaData().metaData_instance(document_path,result)
     print("done documenting")
 
 
@@ -202,13 +213,6 @@ def retrieve_chunks(user_input: str, document_path: str):
 
 class Chunking:
     def LLM_Response(user_input: str,filePath: str):
-        if not api_key:
-            raise ValueError("Missing OPENROUTER_API_KEY. Did you forget to set it in your .env file?")
-        
-        client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=api_key,  # Use environment variable instead of hardcoded key
-        )
         
         retrived_chunks = retrieve_chunks(user_input,filePath)
 
@@ -227,20 +231,15 @@ class Chunking:
         for _, row in retrived_chunks.iterrows()
         )
         print(metadata_summary)
-        messages = [{"role": "system","content": (
-            f"You are a helpful assistant. Answer based only on the following context:\n\n{context}. "
-            "If you're unsure or the context doesn't contain the relevant information, say so."
+        messages = [{"role": "user","parts": (
+            [f"You are a helpful assistant. Answer based only on the following context:\n\n{context}. "
+            "If you're unsure or the context doesn't contain the relevant information, say so."]
         )}]
 
         
-        messages.append({"role": "user", "content": user_input})
-
-        chat5 = client.chat.completions.create(
-                model="google/gemini-2.0-flash-exp:free",
-                messages=messages,
-            )
-        reply_message = chat5.choices[0].message
-        reply = reply_message.content
+        messages.append({"role": "user", "parts": [user_input]})
+        response = LLMmodel.generate_content(messages)
+        reply = response.text
         # messages.append({"role": "assistant", "content": reply})
         print(f"LLM: "+reply)
         return reply

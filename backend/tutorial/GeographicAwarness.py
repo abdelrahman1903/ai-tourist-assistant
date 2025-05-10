@@ -1,5 +1,5 @@
 import requests
-class Tool:
+class GeographicAwarness:
     # Get location from ipinfo.io
     @staticmethod
     def nearLocations():

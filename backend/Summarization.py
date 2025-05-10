@@ -5,6 +5,7 @@ import torch
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
+import google.generativeai as genai
 
 load_dotenv()
 api_key = os.getenv("OPENROUTER_API_KEY")
@@ -12,11 +13,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 if not api_key:
     raise ValueError("Missing OPENROUTER_API_KEY. Did you forget to set it in your .env file?")
-        
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=api_key,  # Use environment variable instead of hardcoded key
+
+genai.configure(api_key=api_key)
+LLMmodel = genai.GenerativeModel(
+    model_name="gemini-2.0-flash",
 )
+        
 
 # Load the tokenizer and model
 model_name = "google/long-t5-tglobal-base"
@@ -34,14 +36,15 @@ Chunkermodel = AutoModel.from_pretrained("nomic-ai/nomic-embed-text-v2-moe", tru
 Chunkermodel = Chunkermodel.to(device)
 
 #this function will be removed as it is duplicate in chunking file. instead when chunking is done in chunksing file, the summariztion function will be evoked inside it passing the chunks that was already created
-def chunk_document(doc):
+def chunk_document(doc,text):
 
-    filename = os.path.basename(doc)
+    # filename = os.path.basename(doc)
     # --------------------------------------------------------------
     # Extract the data
     # --------------------------------------------------------------
-    converter = DocumentConverter()
-    result = converter.convert(doc)
+    # converter = DocumentConverter()
+    # result = converter.convert(doc)
+    result = text
     # --------------------------------------------------------------
     # Apply hybrid chunking
     # --------------------------------------------------------------
@@ -56,9 +59,9 @@ def chunk_document(doc):
     return chunks
 
 def summarize_chunks(chunks):
-    messages = [{"role": "system","content": (
-            "You are a helpful assistant. Summarize the following user messages "
-            "into one descriptive summary. This will be stored in a metadata file for future retrieval."
+    messages = [{"role": "user","parts": (
+            ["You are a helpful assistant. Summarize the following user messages "
+            "into one descriptive summary. This will be stored in a metadata file for future retrieval."]
         )}]
     print(f"length: "+str(len(chunks)))
     for i, chunk in enumerate(chunks):
@@ -68,23 +71,20 @@ def summarize_chunks(chunks):
         inputs = {k: v.to(device) for k, v in inputs.items()}
         summary_ids = model.generate(inputs["input_ids"], max_length=200)
         summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-        messages.append({"role": "user", "content": summary})
+        messages.append({"role": "user", "parts": [summary]})
         # print(f"Chunk {i+1} Summary:", summary)
-    
-    chat5 = client.chat.completions.create(
-        model="google/gemini-2.0-flash-exp:free",
-        messages=messages,
-    )
-    reply_message = chat5.choices[0].message
-    reply = reply_message.content
+    response = LLMmodel.generate_content(messages)
+    reply = response.text
+
     # print(f"\n📦 Final Aggregated Summary:\n ",reply)
     return reply
 
 class Summarization:
-    def Summarize(self,document_path):
-        filename = os.path.basename(document_path)
-        converter = DocumentConverter()
-        result = converter.convert(document_path)
+    def Summarize(self,document_path,text):
+        # filename = os.path.basename(document_path)
+        # converter = DocumentConverter()
+        # result = converter.convert(document_path)
+        result = text
         document = result.document
         document_text = "\n".join(
             item.text for item in document.texts if hasattr(item, "text") and item.text
@@ -101,30 +101,28 @@ class Summarization:
 
         if len(input_ids) > MAX_TOKENS:
             print(f"⚠️ Document exceeds max token limit of {MAX_TOKENS}. Consider chunking.")
-            chunks = chunk_document(document_path)
+            chunks = chunk_document(document_path,text)
             summary = summarize_chunks(chunks)
             return summary
 
-        inputs = tokenizer(input_text, return_tensors="pt", max_length=MAX_TOKENS, truncation=True)
-        # Move input tensors to the GPU (if available)
-        inputs = {key: value.to(device) for key, value in inputs.items()}
-        # Generate the summary
-        summary_ids = model.generate(inputs["input_ids"], max_length=1000, num_beams=4, length_penalty=2.0, early_stopping=True)
+        # inputs = tokenizer(input_text, return_tensors="pt", max_length=MAX_TOKENS, truncation=True)
+        # # Move input tensors to the GPU (if available)
+        # inputs = {key: value.to(device) for key, value in inputs.items()}
+        # # Generate the summary
+        # summary_ids = model.generate(inputs["input_ids"], max_length=1000, num_beams=4, length_penalty=2.0, early_stopping=True)
 
-        # Decode the generated summary
-        summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+        # # Decode the generated summary
+        # summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
 
-        messages = [{"role": "system","content": (
-                "You are a helpful assistant. Summarize the following user message"
-                "into one descriptive summary. This will be stored in a metadata file for future retrieval."
+        messages = [{"role": "user","parts": (
+                ["You are a helpful assistant. Summarize the following user message"
+                "into one descriptive summary. This will be stored in a metadata file for future retrieval."]
             )}]
-        messages.append({"role": "user", "content": summary})
-        chat5 = client.chat.completions.create(
-            model="google/gemini-2.0-flash-exp:free",
-            messages=messages,
-        )
-        reply_message = chat5.choices[0].message
-        reply = reply_message.content
+        messages.append({"role": "user", "parts": [summary]})
+
+        response = LLMmodel.generate_content(messages)
+
+        response = LLMmodel.generate_content(messages)
         # print(f"\n📦 Final Aggregated Summary:\n ",reply)
         # print("Summary:", summary)
         return summary
