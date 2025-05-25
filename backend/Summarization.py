@@ -25,7 +25,7 @@ model_name = "google/long-t5-tglobal-base"
 # model_name = "allenai/longformer-large-4096"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-MAX_TOKENS = 4096   # as required by longformer-large-4096
+MAX_TOKENS = 20000   # as required by longformer-large-4096
 
 # Move model to the device (GPU or CPU)
 model = model.to(device)
@@ -118,11 +118,11 @@ class Summarization:
                 ["You are a helpful assistant. Summarize the following user message"
                 "into one descriptive summary. This will be stored in a metadata file for future retrieval."]
             )}]
-        messages.append({"role": "user", "parts": [summary]})
+        messages.append({"role": "user", "parts": [document_text]})
 
         response = LLMmodel.generate_content(messages)
 
-        response = LLMmodel.generate_content(messages)
+        summary = response.text
         # print(f"\n📦 Final Aggregated Summary:\n ",reply)
         # print("Summary:", summary)
         return summary
