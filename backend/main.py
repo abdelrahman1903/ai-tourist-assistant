@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from model import Model  # Ensure you have a Model class defined in model.py
@@ -30,9 +30,11 @@ def read_root():
     return {"message": "FastAPI is running!"}
 
 @app.post("/chat")  # ✅ Change to POST
-async def chat(request: TextRequest):
-    user_text = request.text
-    response = model_instance.generate_response(user_text)
+async def chat(request: Request):
+    data = await request.json()
+    user_text = data.get("text")
+    location = data.get("location")
+    response = model_instance.generate_response(user_text,location)
     # print("response",response)
     return {"response": response}  # ✅ Ensure the correct response field
 

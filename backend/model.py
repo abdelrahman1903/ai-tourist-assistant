@@ -11,6 +11,7 @@ import os
 from typing import Literal
 from dotenv import load_dotenv
 import re
+from UpdatedGeographicAwarnessTool import UpdatedGeographicAwarnessTool
 
 
 load_dotenv()
@@ -30,7 +31,7 @@ class RequestType(BaseModel):
     request_type: Literal["tool_call", "direct_model_response", "cultural_question", "rag_response"] = Field(
         description=(
             "Type of request being made, classify the user's message into one of four types:\n\n"
-            "1. **tool_call** → The user is asking to use a specific tool or function (e.g., get nearby museums, etc.).\n\n"
+            "1. **tool_call** → The user is asking to use a specific tool or function (e.g., suggest (any nearby location), etc.).\n\n"
             "2. **cultural_question** → The user is asking for a complete, broad overview of a country’s culture. or about country in general. This means they want detailed cultural insights across many aspects such as history, religion, traditions, values, food, social behavior, festivals, communication style, clothing, etc.\n"
             "**Important:** If the user asks only about **one specific aspect** (like just food, religion, or clothing), this should NOT be classified as a cultural_question — it should be classified as **direct_model_response** instead.\n\n"
             "3. **rag_response** → The user is asking for domain-specific or document-specific information that requires referencing external data or retrieved documents. This is typically for detailed or niche questions that benefit from RAG (retrieval-augmented generation), such as 'What did the author say about memory in chapter 3?', 'Summarize the recent policies of the EU on climate', or 'Give me insights from the uploaded museum documents'.\n\n"
@@ -88,32 +89,41 @@ class Model:
     def __init__(self):
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
+            model_name="gemini-2.5-flash-preview-04-17",
             generation_config={
                 # "temperature": 0.7,  # Default temperature
                 "max_output_tokens": 20000,
             }
         )
-        self.messages = [{"role": "user", "parts": ["You are a kind, helpful culture assistant."]}]
-        museums_nearby = {
-            "name": "nearby_museums",
-            "description": "Get museums locations around the user based on current location",
+        self.location = None  # add this to your class
+        places_nearby = {
+            "name": "nearby_places",
+            "description": "Finds nearby places of interest for user based on the specified type of the place (ex: museum, hotel, cafe, etc), note location is already provided in the function so you don't need to know it.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "dummy": { 
+                    # "dummy": { 
+                    #     # Placeholder field
+                    #     "type": "boolean",
+                    #     "description": "This is a placeholder and should be ignored"
+                    # },
+                    "query": { 
                         # Placeholder field
-                        "type": "boolean",
-                        "description": "This is a placeholder and should be ignored"
+                        "type": "string",
+                        "description": "A single word describing the type of place the user is asking for, formatted as expected by the Foursquare API (e.g., 'museum', 'restaurant')"
+                    },
+                    "language": { 
+                        # Placeholder field
+                        "type": "string",
+                        "description": "A single word describing the language the user is using to chat with the assistante"
                     }
                 },
-                "required": [],
+                "required": ["query","language"],
             },
         }
         self.tools = [
-            Tool(function_declarations=[museums_nearby])
+            Tool(function_declarations=[places_nearby])
         ]
-    
 
     def extract_json_from_text(self,text):
         try:
@@ -129,18 +139,21 @@ class Model:
     
     def tool_call(self):
         try:
+            print(self.location)
             response = self.model.generate_content(
                 contents = self.messages,
                 tools=self.tools
             )
-            
+            print(response)
             # reply_message = response.text
             if not response.candidates[0].content.parts[0].function_call:
                 raise ValueError("Tool call predicted but not present in model response")
 
             def call_function(name, args):
-                if name == "nearby_museums" :
-                    return GeographicAwarness.nearLocations()
+                if name == "nearby_places" :
+                    query=args.get("query", "museum")
+                    language=args.get("language", "english")
+                    return UpdatedGeographicAwarnessTool.search_places(query,self.location["latitude"],self.location["longitude"],language)
                 # if name == "search_DB":
                 #     return Retrieval.search_db()
 
@@ -153,26 +166,29 @@ class Model:
                 self.messages.append(
                     {"role": "user", "parts": [json.dumps(result)]}
                 )
-                self.messages.append({
-                    "role": "user",
-                    "parts": (
-                        ["IMPORTANT: Only for the next response, respond strictly in this JSON format:\n"
-                        '{\n  "museums_near_you": [<list of English museum names>],\n'
-                        '  "notes": "<any additional notes>"\n}\n'
-                        "Do not include anything else before or after this JSON. Do not explain. Just output the JSON only."]
-                    )
-                })
-                response = self.model.generate_content(self.messages)
-                raw_response = response.text
-                try:
-                    # Parse response into dict
-                    parsed_json = self.extract_json_from_text(raw_response)
-                    # print('parsed_json: '+str(parsed_json))
-                    event = nearby_museums(**parsed_json)
-                    reply = json.dumps(event.dict(), indent=2)
-                except Exception as e:
-                    print(f"[Parse Error]: {e}")
-                    reply = raw_response  # fallback: show raw model response
+                reply = json.dumps(result["places_list"])
+                if(not result["status"]):
+                    return "insufficient data"
+                # self.messages.append({
+                #     "role": "user",
+                #     "parts": (
+                #         ["IMPORTANT: Only for the next response, respond strictly in this JSON format:\n"
+                #         '{\n  "museums_near_you": [<list of English museum names>],\n'
+                #         '  "notes": "<any additional notes>"\n}\n'
+                #         "Do not include anything else before or after this JSON. Do not explain. Just output the JSON only."]
+                #     )
+                # })
+                # response = self.model.generate_content(self.messages)
+                # raw_response = response.text
+                # try:
+                #     # Parse response into dict
+                #     parsed_json = self.extract_json_from_text(raw_response)
+                #     # print('parsed_json: '+str(parsed_json))
+                #     event = nearby_museums(**parsed_json)
+                #     reply = json.dumps(event.dict(), indent=2)
+                # except Exception as e:
+                #     print(f"[Parse Error]: {e}")
+                #     reply = raw_response  # fallback: show raw model response
                 self.messages.append({"role": "model", "parts": [reply]})
                 # print("tool reply",reply)
                 return reply
@@ -263,7 +279,14 @@ class Model:
         
         return reply
 
-    def generate_response(self, user_message):
+    def generate_response(self, user_message,location):
+        self.location = location  # store in the instance
+        self.messages = [{"role": "user", "parts": [f"You are a culturally-aware assistant. The user’s location is: {self.location}. "
+              f"Use this location to improve the accuracy, relevance, and personalization of your responses. "
+              f"If the user's request benefits from local context (e.g. suggestions, history, culture, language, events), "
+              f"adapt the answer accordingly. Only skip using location if it’s clearly unrelated to the query."
+              f"Note: Do not include or mention the user's location in your response unless the user explicitly asks for it."
+              ]}]
         self.messages.append({"role": "user", "parts": [user_message]})
         result = self.route_request(user_message)
         # result = Chunking.LLM_Response(user_message)

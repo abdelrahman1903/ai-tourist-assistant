@@ -12,6 +12,29 @@ const ConnectionTest = () => {
   const [file, setFile] = useState(null);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const messagesEndRef = useRef(null);
+  const [location, setLocation] = useState(null);
+  const [error, setError] = useState(null);
+
+
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by your browser.");
+      alert(error);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setLocation({ latitude, longitude });
+        setError(null);
+      },
+      (err) => {
+        setError(`Error: ${err.message}`);
+        alert(error)
+        setLocation(null);
+      }
+    );
+  
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
@@ -56,7 +79,6 @@ const ConnectionTest = () => {
       clearFile();
       // console.log("Upload successful:", response.data);
       return response;
-      
     } catch (error) {
       console.error("Upload error:", error);
     } finally {
@@ -68,12 +90,16 @@ const ConnectionTest = () => {
     if (!inputText.trim() || isLoading) return;
     // Upload file if selected
     setIsLoading(true); // Show loading indicator
+    console.log(location)
     let response;
     let loadingMessageId;
     const userMessage = { type: "user", text: inputText };
     if (file) {
       try {
-        const fileInMessage = { type: "user", text: `📄 Uploaded File: \n${file.name}`};
+        const fileInMessage = {
+          type: "user",
+          text: `📄 Uploaded File: \n${file.name}`,
+        };
         setMessages((prev) => [...prev, fileInMessage]);
         setMessages((prev) => [...prev, userMessage]);
         setInputText(""); // Clear input
@@ -89,7 +115,7 @@ const ConnectionTest = () => {
           },
         ]);
         response = await handleUpload(userMessage); // wait for file to upload
-        console.log("testing response: "+response.data)
+        console.log("testing response: " + response.data);
       } catch (err) {
         console.error("File upload failed. Stopping submit.");
         setIsLoading(false);
@@ -112,6 +138,7 @@ const ConnectionTest = () => {
         ]);
         response = await axios.post("http://127.0.0.1:8000/chat", {
           text: inputText,
+          location: location,
         });
       } catch (err) {
         console.error("message upload failed. Stopping submit.");
@@ -481,7 +508,7 @@ const styles = {
     alignSelf: "flex-end",
     backgroundColor: "#333333",
     borderBottomRightRadius: "4px",
-    whiteSpace: "pre-line"
+    whiteSpace: "pre-line",
   },
   assistantMessage: {
     alignSelf: "flex-start",
