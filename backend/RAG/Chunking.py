@@ -190,13 +190,15 @@ def retrieve_chunks(user_input: str, document_path: str):
     # --------------------------------------------------------------
 
     query_embedding = generate_embeddings(user_input)
-    result = table.search(query=query_embedding).limit(9)
+    result = table.search(query=query_embedding).limit(50)
     df = result.to_pandas()
     # Filter chunks based on distance
     filtered_chunks = []
     for _, row in df.iterrows():
         if row["_distance"] < 250:
-            filtered_chunks.append(row)
+            print("📄📄: ",row['metadata'].get('filename'))
+            if row['metadata'].get('filename') == filename:
+                filtered_chunks.append(row)
         else:
             break  # Stop when distance >= 150
 
