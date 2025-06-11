@@ -32,8 +32,8 @@ class UpdatedGeographicAwarnessTool:
         print(query)
         print(language)
         print(lat,lon)
-        lat = 29.9877557
-        lon = 31.4419752
+        # lat = 29.9877557
+        # lon = 31.4419752
         API_KEY = foursquare_key  # Replace with your actual key
         url = "https://api.foursquare.com/v3/places/search"
 
